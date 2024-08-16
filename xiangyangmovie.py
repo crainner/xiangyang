@@ -1,5 +1,7 @@
 import os
 import requests
+import random
+import time
 
 # 获取一级和二级目录
 def get_directory_names(path):
@@ -20,12 +22,6 @@ def get_directory_names(path):
     except Exception as e:
         print(f"无法访问路径 {path}：{e}")
     return directories, sub_directory_count
-
-# 生成包含所有目录名的文本
-def generate_document(all_directories, total_sub_directories):
-    document_content = "\n".join(all_directories)
-    document_content += f"\n\nTotal number of second-level directories: {total_sub_directories}"
-    return document_content
 
 # 通过Telegram API发送消息到频道
 def send_to_telegram(channel_id, bot_token, message):
@@ -48,28 +44,37 @@ def job():
     # 多个文件存储路径
     storage_paths = ["/app/cc1", "/app/cc2", "/app/cc3", "/app/cc4"]  # 添加你要扫描的路径
 
+    # Telegram bot 和 频道信息
+    telegram_channel_id = os.getenv("TELEGRAM_CHANNEL_ID")
+    telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+
+    if not (telegram_channel_id and telegram_bot_token):
+        print("Telegram频道ID或Bot Token未设置，无法发送消息。")
+        return
+
     all_directories = []
     total_sub_directories = 0
+    message_count = 0
+
     for path in storage_paths:
         directories, sub_directory_count = get_directory_names(path)
         all_directories.extend(directories)
         total_sub_directories += sub_directory_count
 
-    # 生成文档
-    document_content = generate_document(all_directories, total_sub_directories)
+        # 发送每一个目录名到 Telegram
+        for directory in directories:
+            send_to_telegram(telegram_channel_id, telegram_bot_token, directory)
+            message_count += 1
 
-    # 输出文档内容到控制台
-    print(document_content)
+            # 每发送50条消息后随机停1-10秒
+            if message_count % 50 == 0:
+                sleep_time = random.randint(1, 10)
+                print(f"已发送 {message_count} 条消息，随机停顿 {sleep_time} 秒。")
+                time.sleep(sleep_time)
 
-    # Telegram bot 和 频道信息
-    telegram_channel_id = os.getenv("TELEGRAM_CHANNEL_ID")
-    telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-
-    if telegram_channel_id and telegram_bot_token:
-        # 发送到Telegram频道
-        send_to_telegram(telegram_channel_id, telegram_bot_token, document_content)
-    else:
-        print("Telegram频道ID或Bot Token未设置，无法发送消息。")
+    # 最后一条消息，输出总目录数
+    final_message = f"\nTotal number of second-level directories: {total_sub_directories}"
+    send_to_telegram(telegram_channel_id, telegram_bot_token, final_message)
 
 if __name__ == "__main__":
     # 立即运行任务
